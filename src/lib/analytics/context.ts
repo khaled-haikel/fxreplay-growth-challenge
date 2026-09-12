@@ -1,7 +1,7 @@
 /**
  * Shared event context.
  *
- * Every event carries these four fields. They live here rather than being passed at
+ * Every event carries these five fields. They live here rather than being passed at
  * each call site, because a field that has to be remembered is a field that will be
  * forgotten in exactly one place and discovered three weeks later.
  *
@@ -45,6 +45,11 @@ export function getVariant(): Variant {
  * Used by funnel-entry events, which are worthless if attributed to the wrong arm.
  * The timeout exists because a blocked or slow flag request must not mean no analytics
  * at all: after it, we proceed on the control default and accept the known bias.
+ *
+ * The timeout path deliberately does NOT set `variantResolved`. Only `setVariant`,
+ * called when the flag actually lands, may do that. This is what lets `buildContext`
+ * mark the event `flag_resolved: false` and keeps a timed-out lookup out of the
+ * experiment instead of quietly padding the control arm.
  */
 export function onVariantResolved(timeoutMs = 2000): Promise<Variant> {
   if (variantResolved) return Promise.resolve(currentVariant);
@@ -56,6 +61,11 @@ export function onVariantResolved(timeoutMs = 2000): Promise<Variant> {
       resolve(currentVariant);
     });
   });
+}
+
+/** Whether the experiment arm came from a resolved flag rather than the fallback. */
+export function isFlagResolved(): boolean {
+  return variantResolved;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -100,10 +110,15 @@ function getDeviceType(): EventContext['device_type'] {
  * `event_id` is fresh per event. It is the deduplication key: when the same logical
  * event can be emitted from both the browser and the server, both sides send the same
  * id and the destination counts it once.
+ *
+ * `flag_resolved` is read from the live resolution state rather than passed in, so an
+ * event emitted before the flag lands is marked honestly without the call site having
+ * to remember to do it.
  */
 export function buildContext(eventId: string = crypto.randomUUID()): EventContext {
   return {
     variant: currentVariant,
+    flag_resolved: variantResolved,
     event_id: eventId,
     session_id: getSessionId(),
     device_type: getDeviceType(),

@@ -35,6 +35,20 @@ export const contextSchema = z
   .object({
     /** Experiment arm, resolved from the PostHog feature flag. */
     variant: z.enum(['control', 'interactive_replay']),
+    /**
+     * Whether `variant` reflects a flag that actually resolved.
+     *
+     * `false` means the flag never arrived — blocked by an ad blocker, slow, or the
+     * request failed — and `variant` fell back to the control default. Without this
+     * field the two cases are indistinguishable: a real control assignment and a
+     * failed flag lookup both read as `variant: 'control'`, so every failure silently
+     * inflates the control arm and biases the experiment toward no effect.
+     *
+     * Events with `flag_resolved: false` must be EXCLUDED from experiment analysis,
+     * not counted as control. They remain valid for non-experiment reporting, where
+     * the arm does not matter.
+     */
+    flag_resolved: z.boolean(),
     /** Deduplication key, shared when the same event can originate on both sides. */
     event_id: z.string().uuid(),
     session_id: z.string().min(1),
@@ -339,3 +353,48 @@ export function validateEvent<E extends EventName>(
     context: parsedContext.data,
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Accepted system events                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * PostHog system events we knowingly accept.
+ *
+ * Invariant 1 says event names are never invented, which makes any event outside the
+ * tracking plan suspect. PostHog emits some of its own regardless, so the honest thing
+ * is to declare which ones we expect and why, rather than leaving a reviewer to guess
+ * whether an unfamiliar `$` event is a defect or a default nobody turned off.
+ *
+ * Disabled on purpose in `client.ts`, and therefore NOT in this list:
+ *
+ *   autocapture       one event per click, keyed on CSS selectors. High volume, and
+ *                     the keys break whenever markup changes, so the funnel we
+ *                     designed would be buried in noise we do not control.
+ *   capture_pageview  PostHog's own `$pageview`. We emit `page_viewed` instead, with
+ *                     the properties this plan declares.
+ *
+ * Any system event arriving that is not listed here is a defect to investigate: it
+ * means a default was re-enabled, or the SDK changed behaviour under us.
+ */
+export const acceptedSystemEvents = [
+  {
+    event: '$pageleave',
+    reason:
+      'Enabled via `capture_pageleave` in client.ts. Gives time-on-page, a diagnostic ' +
+      'signal that matters for a landing experience where the question is whether ' +
+      'visitors engaged or bounced. Its system properties are stable, unlike ' +
+      'autocapture, which keys events on CSS selectors that change with the markup.',
+  },
+  {
+    event: '$feature_flag_called',
+    reason:
+      'Emitted by PostHog whenever `getFeatureFlag` runs. Required for experiment ' +
+      'analysis: it is how PostHog attributes exposure to an arm. It cannot be ' +
+      'disabled without losing feature flag functionality, so it is accepted rather ' +
+      'than suppressed.',
+  },
+] as const satisfies ReadonlyArray<{ event: string; reason: string }>;
+
+/** Names only, for assertions that no unexpected system event arrived. */
+export type AcceptedSystemEvent = (typeof acceptedSystemEvents)[number]['event'];
