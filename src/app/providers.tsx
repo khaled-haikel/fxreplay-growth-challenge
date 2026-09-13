@@ -9,7 +9,7 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { initAnalytics, trackWhenVariantReady } from '@/lib/analytics/client';
 
@@ -18,8 +18,26 @@ function readUtm(params: URLSearchParams, key: string): string | null {
 }
 
 export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
+  /**
+   * Guards the funnel-entry event against React strict mode.
+   *
+   * In development the App Router runs effects twice — mount, cleanup, mount — on the
+   * same component instance. `initAnalytics` survives that on its own `initialized`
+   * flag, but `page_viewed` had no such guard and fired twice, which doubles the
+   * denominator and halves every conversion rate measured against a dev build.
+   *
+   * A ref rather than a module flag: refs persist across strict mode's simulated
+   * remount, so this fires exactly once there, and it is still scoped to the
+   * component, so a genuine remount on a future route change would fire again — which
+   * is the behaviour a real navigation should have.
+   */
+  const enteredRef = useRef(false);
+
   useEffect(() => {
     initAnalytics();
+
+    if (enteredRef.current) return;
+    enteredRef.current = true;
 
     const params = new URLSearchParams(window.location.search);
 
@@ -33,9 +51,9 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
       utm_medium: readUtm(params, 'utm_medium'),
       utm_campaign: readUtm(params, 'utm_campaign'),
     });
-    // Runs once per mount. This is a single-page landing experience, so there is no
-    // route change to re-fire on. If routes are added later, this needs a pathname
-    // dependency and a guard against double-firing in React strict mode.
+    // Runs once per mount, now guarded above. This is a single-page landing
+    // experience, so there is no route change to re-fire on; if routes are added
+    // later this needs a pathname dependency as well.
   }, []);
 
   return <>{children}</>;

@@ -186,7 +186,7 @@ export function SignupForm({ entryPoint }: { entryPoint: EntryPoint }) {
 
     // Only now. The account exists, so the anonymous visitor and this user are
     // genuinely the same person, and the funnel can close.
-    identifyUser(data.id, data.email);
+    identifyUser(data.id, { email: data.email, name: data.name });
 
     setAccount(data);
     setProgress(current);
