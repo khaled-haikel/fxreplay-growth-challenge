@@ -20,22 +20,46 @@ Feature flag: `hero-interactive-replay`
 
 | Arm | Hero |
 |---|---|
-| `control` | Headline, subhead, CTA, and a static chart image in the panel. No interaction. |
-| `interactive_replay` | The same headline and CTA, with a playable replay: autoplay, buy/sell/close, live P&L in R, and a post-trade CTA inside the panel. |
+| `control` | The full candle chart in its final state — same series, same renderer, same price line and axis. No animation, no trade controls, no session cards. |
+| `interactive_replay` | The same chart, played candle by candle: autoplay, buy/sell/close, live P&L in R, session cards, and a post-trade CTA inside the panel. |
 
 Everything outside the hero is identical — same copy, same proof cards, same signup
-form, same page structure. The only difference is whether the panel is interactive.
+form, same page structure.
+
+### The isolated variable is interactivity, with content held constant
+
+Both arms render the **same 120 seeded candles through the same drawing code**
+(`src/lib/replay/draw-chart.ts`). A visitor in either arm sees the same market data, the
+same price line, the same axis, at the same size, in the same chrome. The treatment
+advances through the series and lets you trade it; the control shows where it ended.
+
+That is what makes a result interpretable. The only thing that differs is whether the
+visitor can act on what they are looking at, so a lift can only be attributed to that.
+
+**This was wrong in the first version, and the correction matters more than a clean
+narrative.** The control originally rendered an empty reserved skeleton — gridlines, an
+axis, and no data. That confounded two variables: whether the visitor saw market content
+at all, and whether they could interact with it. A win for the treatment could have been
+caused by either, and the experiment would have produced a confident answer to a question
+nobody asked. It was also a control nobody would actually ship: someone building a static
+hero for this product would render the chart, not leave a hole, so the comparison was
+closer to a foregone conclusion than a measurement. A control should be the best
+reasonable version of the alternative, and the empty skeleton was not.
 
 **Both arms are built.** The hero reads the arm from `onVariantResolved()` in the
 analytics layer — the same feature flag that stamps `variant` onto every event, so a
 visitor cannot be shown one arm and have their events attributed to the other.
 
-The control reuses the interactive panel's chrome exactly: same `Panel`, same title bar,
-same reserved `aspect-[16/10]` body, same gridlines and price axis. It is a Server
-Component and ships no JavaScript. **No screenshot was used** — an image would change
-visual density, colour and the amount of market information on screen, and a lift could
-then be attributed to any of them rather than to interactivity, which is the only thing
-the hypothesis isolates.
+The control reuses the treatment's chrome and its renderer: same `Panel`, same title bar,
+same reserved `aspect-[16/10]` body, and the same `drawChart` implementation rather than
+a second one that could drift. **No screenshot was used** — a rendered image would change
+visual density and colour independently of the data, and would go stale the moment the
+series changed. The control draws the real series once and stops.
+
+It is a client component, which is the minimum a canvas allows: nothing is painted until
+a 2D context exists, and that only happens in a browser. What it ships is one effect, one
+draw call and a resize observer — no animation loop, no state, no trade mechanics, no
+instrumentation.
 
 **To see each arm as a reviewer:** toggle `hero-interactive-replay` in PostHog for your
 own user, then reload. Rolled out, you get the replay; rolled back or unresolved, you get

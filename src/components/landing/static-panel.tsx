@@ -1,38 +1,36 @@
 import Image from "next/image";
 
 import { Panel } from "./panel";
+import { StaticChart } from "./static-chart";
 import { SYMBOL, TIMEFRAME } from "@/lib/replay/generate-candles";
 
 /**
  * The control arm of the hero experiment.
  *
- * Everything the interactive panel has except the interaction: the same `Panel`
- * chrome, the same title bar, the same reserved 16/10 body, the same gridlines and
- * price axis. No canvas, no animation loop, no controls, no instrumentation.
+ * It renders the SAME chart as the treatment — same seeded series, same renderer, same
+ * price line and axis — in its final state. The difference between the arms is precisely
+ * and only interactivity:
  *
- * A screenshot was deliberately not used. The hypothesis isolates *interactivity* —
- * whether letting a visitor take a trade converts better than describing one — so the
- * two arms must differ in exactly that and nothing else. A rendered image of a real
- * chart would also change the visual density, the colour, and the amount of market
- * information on screen, and a lift could then be attributed to any of them. The
- * skeleton keeps the comparison honest at the cost of a less impressive control.
+ *   no animation loop, no candle-by-candle advance
+ *   no Play, Buy, Sell or Close controls
+ *   no floating Session P&L / Trades / Status cards
+ *   a static title bar status
  *
- * Server Component: it renders to static HTML and ships no JavaScript at all, which is
- * also what makes the arms differ in main-thread cost the way the experiment expects.
+ * WHY IT IS NOT AN EMPTY SKELETON
+ *
+ * The first version of this control was a reserved box with gridlines and no data. That
+ * was methodologically wrong: it varied both the presence of content and the presence of
+ * interactivity, so a win for the treatment could have been caused by either. Worse, it
+ * was a control nobody would actually build — someone shipping a static hero for this
+ * product would render the chart, not leave a hole — which made the comparison a
+ * foregone conclusion rather than a measurement.
+ *
+ * A control should be the best reasonable version of the alternative. This is that.
+ *
+ * The title bar reads "Preview" rather than "Paused": there is no playback to be paused,
+ * and a status implying a stopped animation would suggest an interaction that does not
+ * exist.
  */
-
-/** Matches the interactive panel's gridline placement so the two arms sit identically. */
-const GRIDLINE_FRACTIONS = [0.25, 0.5, 0.75];
-
-/**
- * Four axis ticks as em dashes rather than prices.
- *
- * The control shows no market data, so inventing plausible price labels would put
- * fabricated numbers on the page — the same reason the evaluation rules panel uses
- * dashes. A dash reads as "not populated"; a made-up price reads as a claim.
- */
-const AXIS_TICKS = [0, 1, 2, 3];
-
 export function StaticPanel() {
   return (
     <Panel
@@ -57,39 +55,9 @@ export function StaticPanel() {
         </>
       }
     >
-      {/* The same reservation as the interactive arm. Both arms must occupy identical
-          space from the first server-rendered byte or the experiment would compare two
-          different layouts as well as two different heroes. */}
-      <div className="relative aspect-[16/10] w-full">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-[12%] bottom-[28%] flex flex-col justify-between opacity-60"
-        >
-          {GRIDLINE_FRACTIONS.map((fraction) => (
-            <span key={fraction} className="h-px w-full bg-line-subtle" />
-          ))}
-        </div>
-
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-[22%] h-px bg-line-subtle"
-        />
-
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-[9%] flex justify-between px-5"
-        >
-          {AXIS_TICKS.map((tick) => (
-            <span key={tick} className="tabular text-[10px] text-fg-muted">
-              &mdash;
-            </span>
-          ))}
-        </div>
-
-        <p className="absolute inset-0 flex items-center justify-center text-sm text-fg-muted">
-          Market replay
-        </p>
-      </div>
+      {/* The same reservation as the treatment. Both arms hold identical space from the
+          first server-rendered byte, so the variant switch cannot shift layout. */}
+      <StaticChart />
     </Panel>
   );
 }
