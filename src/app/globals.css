@@ -1,26 +1,397 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   FX Replay design tokens
+
+   Two layers, on purpose.
+
+   PRIMITIVES are the raw brand values, transcribed exactly from the brand kit.
+   They are prefixed `--fx-` and deliberately do NOT generate Tailwind utilities,
+   so no component can reach for `bg-blue-600` and bypass the semantic layer.
+
+   SEMANTIC tokens say what a value is for, and they are what generates the
+   utilities components actually use: `bg-surface`, `text-secondary`,
+   `border-subtle`. Swapping the brand's blue means editing one primitive.
+
+   The brand kit README requires this split and explicitly forbids hard-coded
+   hex or raw primitives in components. Its `tokens/tokens.css` was not included
+   in the delivered zip, so the semantic layer below is derived here and
+   documented in ARCHITECTURE.md as an assumption.
+   ========================================================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ---- Primitives: blue (brand) ------------------------------------- */
+  --fx-blue-50: #eaf2ff;
+  --fx-blue-100: #ccdfff;
+  --fx-blue-200: #abcafe;
+  --fx-blue-300: #80affe;
+  --fx-blue-400: #5695fe;
+  --fx-blue-500: #2c7bfd;
+  --fx-blue-600: #0260fd; /* Electric Blue — the brand colour */
+  --fx-blue-700: #0250d3;
+  --fx-blue-800: #01307f;
+  --fx-blue-900: #012054;
+
+  /* ---- Primitives: dark (surfaces) ---------------------------------- */
+  /* Note the scale runs light to dark: 50 is mid grey, 900 is near black. */
+  --fx-dark-50: #8a8a8a;
+  --fx-dark-100: #7a7a7a;
+  --fx-dark-200: #6a6a6a;
+  --fx-dark-300: #5a5a5a;
+  --fx-dark-400: #4a4a4a;
+  --fx-dark-500: #3a3a3a;
+  --fx-dark-600: #2a2a2a;
+  --fx-dark-700: #1a1a1a;
+  --fx-dark-800: #0a0a0a;
+  --fx-dark-900: #030303;
+
+  /* ---- Primitives: neutral (text) ----------------------------------- */
+  --fx-neutral-50: #f6f6f6;
+  --fx-neutral-100: #e7e7e7;
+  --fx-neutral-200: #d1d1d1;
+  --fx-neutral-300: #b0b0b0;
+  --fx-neutral-400: #888888;
+  --fx-neutral-500: #6d6d6d;
+  --fx-neutral-600: #5d5d5d;
+  --fx-neutral-700: #4f4f4f;
+  --fx-neutral-800: #454545;
+  --fx-neutral-900: #3d3d3d;
+
+  /* ---- Derived: market direction ------------------------------------
+     The brand kit has no up/down colours and a replay needs them. These are
+     desaturated enough not to compete with Electric Blue, and are used only
+     inside the chart.
+
+     Accessibility: red/green is the worst possible pair for deuteranopia, so
+     direction is never carried by colour alone. Every outcome also has a sign
+     (+/-) and a text label.
+     -------------------------------------------------------------------- */
+  --fx-market-up: #1e9e6a;
+  /* Lightened from #d6454b, which measured 3.99:1 against `surface-raised` and so
+     could not be used for the Sell control or a negative P&L. #db595f is 4.65:1
+     there and 5.51:1 on canvas. Hue is unchanged, so it still reads as the same
+     red and still does not compete with Electric Blue. */
+  --fx-market-down: #db595f;
+
+  /* ---- Chart tokens --------------------------------------------------
+     The replay draws to a canvas, and canvas takes colour strings from JS
+     rather than classes. `@theme inline` resolves semantic tokens into
+     utilities without emitting most of them as custom properties, so the
+     component has nothing to read at runtime.
+
+     These five exist so the canvas can stay off the raw `--fx-` primitives:
+     the component reads `--chart-*`, and the mapping to brand values stays
+     here in the token layer where every other mapping lives.
+     -------------------------------------------------------------------- */
+  --chart-up: var(--fx-market-up);
+  --chart-down: var(--fx-market-down);
+  --chart-accent: var(--fx-blue-600);
+  --chart-line: var(--fx-dark-700);
+  --chart-label: var(--fx-neutral-400);
+  /* Text drawn on top of the accent price tag. Accent-on-surface is 3.86:1, which
+     is under AA, so the last price sits on a filled chip instead of floating. */
+  --chart-on-accent: var(--fx-neutral-50);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* ---- Surfaces ------------------------------------------------------
+     Hierarchy comes from elevation, not from borders. Each step is a small
+     lift off the canvas; heavy 1px grey outlines everywhere are the visual
+     signature of a template.
+     -------------------------------------------------------------------- */
+  --color-canvas: var(--fx-dark-900);
+  --color-surface: var(--fx-dark-800);
+  --color-surface-raised: var(--fx-dark-700);
+
+  /* ---- Borders ------------------------------------------------------- */
+  --color-line-subtle: var(--fx-dark-700);
+  --color-line-default: var(--fx-dark-600);
+  --color-line-strong: var(--fx-dark-500);
+
+  /* ---- Text ---------------------------------------------------------- */
+  --color-fg-primary: var(--fx-neutral-50);
+  --color-fg-secondary: var(--fx-neutral-300);
+  --color-fg-muted: var(--fx-neutral-400);
+  --color-fg-on-accent: var(--fx-neutral-50);
+
+  /* ---- Accent --------------------------------------------------------
+     The original rule here was one blue element per viewport. Held strictly,
+     it produced a page that was entirely neutral grey on near-black, which
+     reads as unfinished rather than restrained.
+
+     The revised rule: only ONE element per viewport is a solid accent FILL —
+     the primary CTA. Blue may also appear as a tint, a stroke or small text,
+     which keeps the CTA the loudest thing on screen while giving the page a
+     colour rhythm instead of none.
+
+     Electric Blue itself is 3.86:1 on `surface`, so it can never carry text.
+     The two tokens below exist because of that: they are the blues that are
+     actually legible on these backgrounds.
+
+       accent-soft    blue-400, 5.9-7.0:1 — coloured text and icon strokes
+       accent-bright  blue-300, 7.9-9.3:1 — small text needing more headroom
+       accent-subtle  blue-900 — a tinted surface. Against canvas it measures
+                      1.31:1, a stronger elevation cue than `surface-raised`
+                      manages at 1.14:1, so a tinted tile lifts further off
+                      the page than a neutral one does.
+     -------------------------------------------------------------------- */
+  --color-accent: var(--fx-blue-600);
+  --color-accent-hover: var(--fx-blue-500);
+  --color-accent-pressed: var(--fx-blue-700);
+  --color-accent-subtle: var(--fx-blue-900);
+  --color-accent-soft: var(--fx-blue-400);
+  --color-accent-bright: var(--fx-blue-300);
+
+  /* ---- Market -------------------------------------------------------- */
+  --color-market-up: var(--fx-market-up);
+  --color-market-down: var(--fx-market-down);
+
+  /* ---- Focus ---------------------------------------------------------
+     Lighter than the accent so the ring stays visible against both the near
+     black canvas and the blue CTA it may sit on.
+     -------------------------------------------------------------------- */
+  --color-focus: var(--fx-blue-400);
+
+  /* ---- Typography ----------------------------------------------------
+     Three roles, no overlap. The font variables are injected by next/font in
+     layout.tsx; the fallbacks keep layout sane if a font request fails.
+
+       display  Lato, used at weight 900 for headlines
+       sans     Nunito Sans, body and UI
+       mono     numeric values only — price, P&L, R multiples
+     -------------------------------------------------------------------- */
+  --font-display: var(--font-lato), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SFMono-Regular", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-fg-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Display type: the black weight only earns its keep with tight tracking. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 900;
+    letter-spacing: -0.025em;
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+
+  /* Financial values must not shift horizontally as digits change. Tabular
+     figures are the difference between a number and a number that dances. */
+  .tabular,
+  code,
+  kbd,
+  samp {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Visible focus on every interactive element, keyboard only. */
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-fg-on-accent);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ==========================================================================
+   Motion
+
+   The earlier rule for this build was that the replay would be the only moving
+   thing on the page. That has been lifted deliberately: without any entrance at
+   all the page arrives as a flat wall, which reads as a template rather than as
+   a product.
+
+   What replaced it is narrow. Two effects, both short, both travelling ~16px or
+   less, nothing that loops, nothing that moves on its own while being read.
+
+     .fx-enter   a staggered entrance for above-the-fold content, on load
+     .fx-reveal  a fade-and-rise as a block scrolls into view
+
+   The reveal is driven by `animation-timeline: view()` rather than by an
+   IntersectionObserver, which keeps every section a Server Component and ships
+   no JavaScript for it. It is wrapped in @supports because a browser without
+   scroll-timeline support would otherwise honour `opacity: 0` and never run the
+   animation that clears it — the content would simply never appear. Unsupported
+   browsers get the finished page with no animation, which is the correct
+   degradation.
+
+   Both live inside `prefers-reduced-motion: no-preference`, so a visitor who
+   asked for less motion never has opacity animated at all. That is belt and
+   braces with the reduce block below: a scroll-driven animation is paced by the
+   timeline rather than by `animation-duration`, so zeroing the duration there
+   would not actually stop it.
+   ========================================================================== */
+
+@keyframes fx-enter-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fx-reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fx-enter {
+    animation: fx-enter-in 700ms cubic-bezier(0.22, 0.72, 0.2, 1) both;
+  }
+  .fx-enter-2 {
+    animation-delay: 80ms;
+  }
+  .fx-enter-3 {
+    animation-delay: 160ms;
+  }
+  .fx-enter-4 {
+    animation-delay: 240ms;
+  }
+  .fx-enter-5 {
+    animation-delay: 320ms;
+  }
+
+  @supports (animation-timeline: view()) {
+    .fx-reveal {
+      opacity: 0;
+      animation: fx-reveal-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 30%;
+    }
+    /* Stagger is tied to scroll position rather than to a delay: with a scroll
+       timeline a delay would be a distance, and the group would arrive unevenly
+       depending on how fast the visitor scrolls. */
+    .fx-reveal-2 {
+      animation-range: entry 5% cover 35%;
+    }
+    .fx-reveal-3 {
+      animation-range: entry 10% cover 40%;
+    }
+  }
+}
+
+/* When a visitor has asked the system for less motion, autoplay is suppressed in
+   the replay itself and everything else stops moving here. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================================================
+   Atmosphere
+
+   Two decorative layers that give the near-black canvas some depth. Both are
+   pure CSS with no dependencies, both are applied to empty elements marked
+   aria-hidden, and both sit behind content on a negative z-index.
+
+   They are defined here rather than as inline styles in components because
+   they reference brand primitives, and primitives are not allowed to leak
+   into markup.
+   ========================================================================== */
+
+@layer components {
+  /* A 44px lattice that fades out before it reaches any edge. The mask is what
+     keeps this reading as texture: an unmasked grid at full strength looks
+     like a table, and competes with the chart it is supposed to sit behind. */
+  .fx-grid {
+    background-image:
+      repeating-linear-gradient(
+        to right,
+        var(--fx-dark-700) 0 1px,
+        transparent 1px 44px
+      ),
+      repeating-linear-gradient(
+        to bottom,
+        var(--fx-dark-700) 0 1px,
+        transparent 1px 44px
+      );
+    /* The centre of the texture sits over on the right, roughly behind the
+       replay panel, and is already at zero by the time it reaches the left
+       column where the h1 and subhead live. A grid running under display type
+       fights it for attention and the type loses. */
+    -webkit-mask-image: radial-gradient(
+      ellipse 55% 70% at 76% 42%,
+      rgb(0 0 0 / 0.85) 0%,
+      rgb(0 0 0 / 0.3) 48%,
+      transparent 70%
+    );
+    mask-image: radial-gradient(
+      ellipse 55% 70% at 76% 42%,
+      rgb(0 0 0 / 0.85) 0%,
+      rgb(0 0 0 / 0.3) 48%,
+      transparent 70%
+    );
+    /* Texture, not pattern. At full strength the 44px lattice is something you
+       look at; at this weight it is something the page sits on. */
+    opacity: 0.45;
+  }
+
+  /* The glow. On a #030303 canvas this is the difference between a product
+     page and a text file: it gives the panel something to sit on top of.
+     Blurred heavily so no edge of the gradient is ever visible. */
+  .fx-glow {
+    /* The alpha lives on the element, not in the colour. color-mix() works in
+       every browser this project targets, but its generated fallback is
+       full-strength blue: a browser without support would get a hard blue wash
+       instead of a hint. Plain opacity has no such cliff. */
+    background-image: radial-gradient(
+      closest-side,
+      var(--fx-blue-600) 0%,
+      transparent 100%
+    );
+    opacity: 0.08;
+    filter: blur(64px);
+  }
+
+  /* The hero panel sits on a stronger, wider version. Declared after `.fx-glow`
+     so the override is decided by source order, not by which layer a utility
+     happens to land in. */
+  .fx-glow-strong {
+    opacity: 0.17;
+    filter: blur(90px);
+  }
+
+  /* A short lift at the very top of the page, so the header does not begin on flat
+     black. Purely decorative. */
+  .fx-top-fade {
+    background-image: linear-gradient(
+      to bottom,
+      var(--fx-dark-800) 0%,
+      transparent 100%
+    );
+  }
 }
