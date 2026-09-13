@@ -209,7 +209,7 @@ export function Proof() {
               key={item.index}
               className={`group fx-reveal ${
                 ["", "fx-reveal-2", "fx-reveal-3"][index]
-              } flex h-full flex-col overflow-hidden rounded-xl border border-line-subtle bg-surface transition-[transform,border-color] duration-300 ease-out hover:-translate-y-1 hover:border-line-default`}
+              } flex h-full flex-col overflow-hidden rounded-xl border border-line-subtle bg-surface transition-[background-color,border-color] duration-150 ease-out hover:border-line-strong hover:bg-surface-raised`}
             >
               {/* The preview gets its own inset band so the card reads as a piece of
                   product with a caption under it, rather than as a paragraph with a

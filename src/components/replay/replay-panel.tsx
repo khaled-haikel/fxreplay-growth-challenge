@@ -765,7 +765,7 @@ export function ReplayPanel() {
                   label: "Keep this session",
                 })
               }
-              className="inline-flex items-center justify-center rounded-full bg-accent px-5 py-2 text-sm font-bold text-fg-on-accent transition-[background-color,transform] duration-200 ease-out hover:-translate-y-0.5 hover:bg-accent-pressed"
+              className="inline-flex items-center justify-center rounded-full bg-accent px-5 py-2 text-sm font-bold text-fg-on-accent transition-[background-color,box-shadow] duration-150 ease-out hover:bg-accent-pressed hover:shadow-[0_0_0_3px_var(--color-accent-subtle)]"
             >
               Keep this session
             </Link>
@@ -773,21 +773,23 @@ export function ReplayPanel() {
         </div>
       </Panel>
 
-      {/* Floating at desktop widths, where there is margin to hang them in. */}
-      <div className="pointer-events-none hidden lg:block">
-        <div className="absolute -left-6 top-[13%] w-[132px]">
-          {cardContent.pnl}
-        </div>
-        <div className="absolute -right-6 top-[36%] w-[122px]">
-          {cardContent.status}
-        </div>
-        <div className="absolute -right-6 top-[60%] w-[112px]">
-          {cardContent.trades}
-        </div>
-      </div>
+      {/* Below the panel at every width, in one row.
 
-      {/* Stacked below the panel on phones: no overlap, nothing covering the chart. */}
-      <div className="mt-3 grid grid-cols-3 gap-2 lg:hidden">
+          These were absolutely positioned over the canvas at 13%, 36% and 60% of the
+          panel height, which put the Status and Trades cards on top of the price line
+          and the newest candles, the first place a trader's eye goes. A session readout
+          is worth nothing if it obscures the session.
+
+          A row beneath the panel was chosen over anchoring to the panel edges: the
+          hero's right column is already narrow at `lg`, so edge-anchored cards would
+          either still overlap the plot or push outside the column and collide with the
+          headline. Below the chart they are always fully readable, they keep the same
+          reading order on every screen, and one layout replaces two.
+
+          This sits outside the Panel, so the chart area is untouched: the
+          `aspect-[16/10]` reservation is unchanged. It is in normal flow beneath a
+          panel of already-fixed height, so it adds no layout shift. */}
+      <div className="mt-3 grid grid-cols-3 gap-2">
         {cardContent.pnl}
         {cardContent.status}
         {cardContent.trades}

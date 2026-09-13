@@ -34,7 +34,7 @@ export function CtaLink({
   return (
     <Link
       href={`/signup?from=${placement}`}
-      className="inline-flex items-center justify-center rounded-full bg-accent px-8 py-3.5 text-base font-bold text-fg-on-accent transition-[background-color,transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:bg-accent-pressed hover:shadow-lg"
+      className="inline-flex items-center justify-center rounded-full bg-accent px-8 py-3.5 text-base font-bold text-fg-on-accent transition-[background-color,box-shadow] duration-150 ease-out hover:bg-accent-pressed hover:shadow-[0_0_0_3px_var(--color-accent-subtle)]"
     >
       {children}
     </Link>

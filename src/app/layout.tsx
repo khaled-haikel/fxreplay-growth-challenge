@@ -35,7 +35,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FX Replay — practise your prop firm evaluation before you pay for it",
+  title: "FX Replay: practise your prop firm evaluation before you pay for it",
   description:
     "Replay real market data candle by candle, take the trade, and see the result. " +
     "Rehearse the drawdown and daily loss rules your evaluation holds you to, while " +

@@ -244,7 +244,7 @@ export function SignupForm({ entryPoint }: { entryPoint: EntryPoint }) {
       <button
         type="submit"
         disabled={submitting}
-        className="inline-flex w-full items-center justify-center rounded-full bg-accent px-8 py-3.5 text-base font-bold text-fg-on-accent transition-[background-color,transform] duration-200 ease-out hover:-translate-y-0.5 hover:bg-accent-pressed disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+        className="inline-flex w-full items-center justify-center rounded-full bg-accent px-8 py-3.5 text-base font-bold text-fg-on-accent transition-[background-color,box-shadow] duration-150 ease-out hover:bg-accent-pressed hover:shadow-[0_0_0_3px_var(--color-accent-subtle)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:shadow-none"
       >
         {submitting ? "Creating your account…" : "Create my account"}
       </button>
@@ -343,7 +343,7 @@ function SuccessPanel({
             {progress.tradeCount}
           </span>{" "}
           {progress.tradeCount === 1 ? "trade" : "trades"} before signing up. Your
-          full session picks up where the hero left off — same data, same rules, no
+          full session picks up where the hero left off. Same data, same rules, no
           time limit.
         </p>
       ) : (
@@ -372,7 +372,7 @@ function SuccessPanel({
 
       <Link
         href="/"
-        className="mt-8 inline-flex items-center justify-center rounded-full bg-accent px-8 py-3.5 text-base font-bold text-fg-on-accent transition-[background-color,transform] duration-200 ease-out hover:-translate-y-0.5 hover:bg-accent-pressed"
+        className="mt-8 inline-flex items-center justify-center rounded-full bg-accent px-8 py-3.5 text-base font-bold text-fg-on-accent transition-[background-color,box-shadow] duration-150 ease-out hover:bg-accent-pressed hover:shadow-[0_0_0_3px_var(--color-accent-subtle)]"
       >
         Back to the replay
       </Link>

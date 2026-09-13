@@ -29,15 +29,11 @@ export function Hero() {
         <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-14">
           {/* Panel leads on a phone, where it is the only thing worth scrolling for. */}
           <div className="order-2 lg:order-1">
-            <p className="fx-enter inline-flex items-center rounded-full border border-accent-soft/40 bg-accent-subtle px-3 py-1 font-mono text-[12px] leading-5 text-accent-bright">
-              Built for prop firm evaluations
-            </p>
-
             {/* The break is explicit rather than left to balancing, so the split
                 lands on the clause and the headline is always exactly two lines. */}
             <h1
               id="hero-heading"
-              className="fx-enter fx-enter-2 mt-6 max-w-[22ch] text-4xl sm:text-5xl lg:text-[2.9rem] xl:text-[3.25rem]"
+              className="fx-enter mt-6 max-w-[22ch] text-4xl sm:text-5xl lg:text-[2.9rem] xl:text-[3.25rem]"
             >
               Practise the attempt
               <span className="block text-fg-secondary">
@@ -47,7 +43,7 @@ export function Hero() {
 
             <p className="fx-enter fx-enter-3 mt-5 max-w-[52ch] text-lg leading-relaxed text-fg-secondary">
               FX Replay runs real market data candle by candle. Take the trade,
-              manage it, and see how it ends — under the same drawdown and daily
+              manage it, and see how it ends, under the same drawdown and daily
               loss rules your evaluation will judge you on.
             </p>
 
