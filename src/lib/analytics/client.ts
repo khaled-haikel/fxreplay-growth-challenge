@@ -36,6 +36,104 @@ import {
 
 let initialized = false;
 
+/* -------------------------------------------------------------------------- */
+/* Pre-init queue                                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Events emitted before PostHog finished initialising.
+ *
+ * React runs child effects before parent effects. `AnalyticsProvider` wraps the tree,
+ * so every component below it mounts first — and `ReplayPanel` calls `play("autoplay")`
+ * from its own mount effect, which reaches `track('replay_started')` before
+ * `initAnalytics()` has run. Production data showed the consequence: `replay_started`
+ * was absent from every first page load while `trade_opened` five seconds later came
+ * through fine, and the event appeared normally on a client-side navigation back,
+ * where the module was already initialised.
+ *
+ * Returning early when uninitialised would not fix that. Losing step two of the funnel
+ * silently is the defect; a guard that drops the event is the same defect with a
+ * cleaner conscience. So events are held and replayed in order once init completes.
+ */
+interface QueuedEvent {
+  event: string;
+  payload: Record<string, unknown>;
+}
+
+/**
+ * Capacity bound. Twenty-five is far more than the handful of events a mount burst can
+ * produce, and reaching it means init is never coming — at which point the session is
+ * lost regardless. New events are dropped rather than old ones, because the earliest
+ * events are the funnel steps that matter and a partial head is worth more than a
+ * partial tail.
+ */
+const MAX_QUEUED_EVENTS = 25;
+
+/**
+ * Time bound, so the queue cannot hold anything indefinitely. `initAnalytics` runs from
+ * a mount effect; if ten seconds have passed it is not going to run at all, and holding
+ * the events past that point only pretends they might still be delivered.
+ */
+const QUEUE_TTL_MS = 10_000;
+
+let pendingEvents: QueuedEvent[] = [];
+let droppedForCapacity = 0;
+let droppedForTimeout = 0;
+let queueExpiry: ReturnType<typeof setTimeout> | null = null;
+
+function enqueue(event: string, payload: Record<string, unknown>): void {
+  if (pendingEvents.length >= MAX_QUEUED_EVENTS) {
+    droppedForCapacity += 1;
+    return;
+  }
+
+  pendingEvents.push({ event, payload });
+
+  if (queueExpiry === null) {
+    queueExpiry = setTimeout(() => {
+      droppedForTimeout += pendingEvents.length;
+      pendingEvents = [];
+      queueExpiry = null;
+      if (process.env.NODE_ENV === 'development' && droppedForTimeout > 0) {
+        console.error(
+          `[analytics] ${droppedForTimeout} event(s) were queued before init and ` +
+            `discarded after ${QUEUE_TTL_MS}ms because initAnalytics() never ran.`,
+        );
+      }
+    }, QUEUE_TTL_MS);
+  }
+}
+
+/**
+ * Replays the queue in the order it was captured.
+ *
+ * The payloads were validated at emit time, not here: a malformed event has already
+ * failed at the call site that wrote it, which is where the stack trace is useful.
+ * This function only delivers.
+ */
+function flushPendingEvents(): void {
+  if (queueExpiry !== null) {
+    clearTimeout(queueExpiry);
+    queueExpiry = null;
+  }
+
+  if (pendingEvents.length === 0) return;
+
+  const queued = pendingEvents;
+  pendingEvents = [];
+
+  for (const item of queued) {
+    posthog.capture(item.event, item.payload);
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    console.info(
+      `[analytics] flushed ${queued.length} event(s) queued before init:`,
+      queued.map((item) => item.event).join(', '),
+    );
+  }
+}
+
 /**
  * How long to wait before deciding the transport is dead.
  *
@@ -105,6 +203,30 @@ function armTransportCheck(): void {
           'transport is healthy and nothing is calling track().',
       );
     }
+
+    // The queue should be empty by now: init has run and flushed it. If it is not,
+    // something is emitting into a queue that will never drain.
+    if (pendingEvents.length > 0) {
+      console.error(
+        `[analytics] ${pendingEvents.length} event(s) are still queued after init. ` +
+          'They were emitted before initAnalytics() completed and have not been ' +
+          'flushed, so they will not reach PostHog.',
+      );
+    }
+
+    if (droppedForCapacity > 0) {
+      console.error(
+        `[analytics] ${droppedForCapacity} event(s) were dropped before init: the ` +
+          `pre-init queue is capped at ${MAX_QUEUED_EVENTS}.`,
+      );
+    }
+
+    if (droppedForTimeout > 0) {
+      console.error(
+        `[analytics] ${droppedForTimeout} event(s) were discarded because init did ` +
+          'not complete within the queue lifetime.',
+      );
+    }
   }, TRANSPORT_CHECK_MS);
 }
 
@@ -143,6 +265,10 @@ export function initAnalytics(): void {
 
   initialized = true;
 
+  // Anything that fired from a child effect before this point is delivered now, in
+  // the order it was emitted.
+  flushPendingEvents();
+
   armTransportCheck();
 }
 
@@ -165,19 +291,22 @@ export function track<E extends EventName>(
   try {
     const validated = validateEvent(event, properties, context, 'client');
 
-    posthog.capture(event, {
-      ...validated.properties,
-      ...validated.context,
-    });
+    const payload = { ...validated.properties, ...validated.context };
+
+    // Validation has already happened above, at the point the event was written.
+    // All that is left is delivery, and delivery can wait for init; correctness
+    // cannot.
+    if (initialized) {
+      posthog.capture(event, payload);
+    } else {
+      enqueue(event, payload);
+    }
 
     // The ambiguity this removes: when nothing shows up in PostHog, is it because
     // our code never called capture, or because capture was called and nothing got
     // out? One line in the console separates those permanently.
     if (process.env.NODE_ENV === 'development') {
-      console.info(`[analytics] → ${event}`, {
-        ...validated.properties,
-        ...validated.context,
-      });
+      console.info(`[analytics] ${initialized ? 'sent' : 'queued'} ${event}`, payload);
     }
 
     return context.event_id;

@@ -298,6 +298,12 @@ export function validateEvent(event, properties, context, emittedFrom) {
  *
  * Any system event arriving that is not listed here is a defect to investigate: it
  * means a default was re-enabled, or the SDK changed behaviour under us.
+ *
+ * That is not theoretical. `$experiment_exposure` and `$web_vitals` were both added
+ * after a production verification turned them up — the list flagged them immediately
+ * as events nobody had declared, which is exactly the job it exists to do. Keeping it
+ * accurate is what preserves that signal; a list that quietly falls behind reality
+ * stops being a check and becomes decoration.
  */
 export const acceptedSystemEvents = [
     {
@@ -313,5 +319,21 @@ export const acceptedSystemEvents = [
             'analysis: it is how PostHog attributes exposure to an arm. It cannot be ' +
             'disabled without losing feature flag functionality, so it is accepted rather ' +
             'than suppressed.',
+    },
+    {
+        event: '$experiment_exposure',
+        reason: 'Emitted by PostHog alongside a flag evaluation that belongs to a running ' +
+            'experiment. It is the record that this visitor was exposed to an arm, which ' +
+            'is what the experiment results are computed from. Accepted for the same ' +
+            'reason as $feature_flag_called: suppressing it would mean losing the ' +
+            'experiment, which is the thing being measured.',
+    },
+    {
+        event: '$web_vitals',
+        reason: 'Core Web Vitals, captured by posthog-js performance instrumentation. Low ' +
+            'volume, stable system properties, and directly relevant to a landing page ' +
+            'whose conversion depends on how fast the hero becomes interactive. Accepted ' +
+            'rather than disabled because a slow LCP is a conversion problem before it is ' +
+            'a performance one.',
     },
 ];
