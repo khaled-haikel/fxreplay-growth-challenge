@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "tracking-plan": {
+      "command": "node",
+      "args": [
+        "--experimental-transform-types",
+        "mcp/tracking-plan-server/index.mjs"
+      ]
+    }
+  }
+}
