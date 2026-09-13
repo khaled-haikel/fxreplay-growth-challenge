@@ -302,5 +302,8 @@ the Vercel function log and nothing aggregates it. The analytics layer already h
 harder half of this — a development-time detector that catches total telemetry loss — but
 nothing equivalent runs in production.
 
-**The replay's performance budget.** The chart holds the main thread for 2,860ms of
-blocking time. At real traffic that is a conversion cost, and it is measurable.
+**The replay's performance budget.** Total blocking time is 300ms on desktop with the
+treatment forced, down from 2,860ms on the earlier mobile profile. The remaining cost is
+React hydration rather than the canvas: the control arm, which has no animation loop at
+all, measured *higher* on the same profile. At real traffic that is a conversion cost,
+and it is measurable.

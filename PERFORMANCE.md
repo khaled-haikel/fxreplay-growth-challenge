@@ -178,7 +178,6 @@ the cascade.
 | `text-on-accent` on `accent` (the CTA) | 4.75:1 | AA |
 | `market-up` on `surface-raised` (Buy) | 5.10:1 | AA |
 | `market-down` on `surface-raised` (Sell) | 4.65:1 | AA |
-| `accent-bright` on `accent-subtle` (eyebrow) | 7.10:1 | AAA |
 | `accent-soft` on canvas ("1M+") | 7.00:1 | AA |
 | `fg-muted` over a grid line | 5.48:1 | AA |
 

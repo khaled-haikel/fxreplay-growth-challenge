@@ -78,8 +78,8 @@ renderer was extracted so both arms share one drawing implementation.
 
 | Arm | Observed |
 |---|---|
-| `control` | Full static chart with the price line and chip. No controls, no floating cards. Title bar reads `Preview`. Nothing animates. |
-| `interactive_replay` | Chart plays, controls and floating cards present, loop intact. A trade was taken and closed: `trade_closed` fired with plausible `pnl_r` and `hold_candles`, and the Trades card incremented. |
+| `control` | Full static chart with the price line and chip. No controls, no session cards. Title bar reads `Preview`. Nothing animates. |
+| `interactive_replay` | Chart plays, controls and session cards present, loop intact. A trade was taken and closed: `trade_closed` fired with plausible `pnl_r` and `hold_candles`, and the Trades card incremented. |
 
 The instrumentation check is the one that mattered. The panel was heavily edited to
 delegate its drawing to the shared renderer, and until a trade had actually been run
@@ -178,8 +178,9 @@ how a 5% false positive rate becomes a 30% one.
 
 - The primary metric is lower, **or**
 - the full sample is reached with no significant difference. The replay is a
-  meaningfully more expensive hero — a canvas, a rAF loop, 2,860ms of blocking time. It
-  has to earn that, and "no measurable difference" means it did not.
+  meaningfully more expensive hero: a canvas, a rAF loop, and a JavaScript bundle the
+  control does not ship. It has to earn that, and "no measurable difference" means it
+  did not.
 
 ### Guardrails that override a positive result
 
@@ -236,3 +237,11 @@ real, varying market data is untested.
 **Novelty.** An interactive hero may convert well initially because it is unusual rather
 than because it is useful. A two-week minimum helps; a follow-up read at four weeks would
 help more.
+
+### Note on the session cards
+
+The cards were floating over the plot area when the arms were verified above. They now
+sit in a row beneath the panel, because overlaying them covered the price line and the
+newest candles. This changed the treatment only: the control has never rendered them,
+and adding them there would have reintroduced the content confound that the shared
+renderer exists to remove. The arms still differ only in interactivity.
