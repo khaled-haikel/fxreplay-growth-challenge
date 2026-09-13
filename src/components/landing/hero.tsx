@@ -1,4 +1,5 @@
-import { ReplayPanel } from "@/components/replay/replay-panel";
+import { HeroPanel } from "./hero-panel";
+import { StaticPanel } from "./static-panel";
 
 import { Glow, GridTexture } from "./atmosphere";
 import { CtaLink } from "./cta-link";
@@ -82,7 +83,10 @@ export function Hero() {
           <div className="fx-enter fx-enter-2 relative order-1 lg:order-2">
             <Glow className="fx-glow-strong -inset-x-8 -top-6 -bottom-6" />
 
-            <ReplayPanel />
+            {/* The arm is chosen from the same feature flag that stamps `variant`
+                onto every event. `StaticPanel` is passed in already server-rendered,
+                so the control arm ships no JavaScript of its own. */}
+            <HeroPanel control={<StaticPanel />} />
           </div>
         </div>
       </div>
