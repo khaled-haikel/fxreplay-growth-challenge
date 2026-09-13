@@ -63,6 +63,39 @@ export function onVariantResolved(timeoutMs = 2000): Promise<Variant> {
   });
 }
 
+/**
+ * Subscribes to the resolved arm, with no timeout.
+ *
+ * `onVariantResolved` exists for events, where a bounded wait is right: an event that
+ * has not been sent within two seconds is worth sending against the control default and
+ * marking `flag_resolved: false`, because the alternative is no event at all.
+ *
+ * Rendering wants the opposite trade. A hero that times out at two seconds and commits
+ * to control has not degraded gracefully, it has shown the wrong arm for the whole
+ * visit, and the visitor's events will then be attributed to an arm they were never
+ * actually in. So this never gives up: the caller renders control meanwhile, and swaps
+ * only if and when the flag genuinely lands. If it never lands, control is both what is
+ * shown and what is recorded, which is consistent.
+ *
+ * Returns an unsubscribe function, because the waiter outlives a component that
+ * unmounts before the flag arrives.
+ */
+export function subscribeToVariant(listener: (variant: Variant) => void): () => void {
+  if (variantResolved) {
+    listener(currentVariant);
+    return () => {};
+  }
+
+  let active = true;
+  variantWaiters.push(() => {
+    if (active) listener(currentVariant);
+  });
+
+  return () => {
+    active = false;
+  };
+}
+
 /** Whether the experiment arm came from a resolved flag rather than the fallback. */
 export function isFlagResolved(): boolean {
   return variantResolved;

@@ -13,6 +13,26 @@ import { useEffect, useRef } from 'react';
 
 import { initAnalytics, trackWhenVariantReady } from '@/lib/analytics/client';
 
+/**
+ * Booted at module scope, not from the effect below.
+ *
+ * React runs child effects before parent effects, so everything under this provider
+ * mounted — and ran its effects — before the provider's own effect could call
+ * `initAnalytics`. For events that was survivable, because the pre-init queue holds
+ * them and replays them. For the experiment arm it was not: `HeroPanel` starts its
+ * `onVariantResolved()` wait from its own mount effect, which means the 2000ms budget
+ * began before PostHog had been initialised and before the flag request had been sent.
+ * On a cold load the timer regularly won, the hero fell back to control, and the
+ * visitor saw the static panel until they reloaded. Nothing surfaced it, because
+ * falling back to control is the designed behaviour of a flag that did not resolve.
+ *
+ * Module scope runs during import evaluation, before any component mounts, so the flag
+ * request is in flight while React is still rendering. `initAnalytics` is idempotent on
+ * its own `initialized` flag and returns immediately during SSR, so calling it here is
+ * safe in both environments.
+ */
+initAnalytics();
+
 function readUtm(params: URLSearchParams, key: string): string | null {
   return params.get(key) ?? null;
 }
@@ -34,8 +54,6 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
   const enteredRef = useRef(false);
 
   useEffect(() => {
-    initAnalytics();
-
     if (enteredRef.current) return;
     enteredRef.current = true;
 

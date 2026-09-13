@@ -3,18 +3,17 @@
 import { useEffect, useState } from "react";
 
 import { ReplayPanel } from "@/components/replay/replay-panel";
-import { onVariantResolved } from "@/lib/analytics/context";
+import { subscribeToVariant } from "@/lib/analytics/context";
 
 type Variant = "control" | "interactive_replay";
 
 /**
  * Chooses which hero panel the visitor sees.
  *
- * The arm comes from `onVariantResolved()` in the analytics layer — the same feature
- * flag that stamps `variant` onto every event. There is deliberately no second source
- * of truth: if this component read the flag independently, a visitor could be shown one
- * arm and have their events attributed to the other, and nothing downstream would
- * reveal it.
+ * The arm comes from the analytics layer's flag state, the same feature flag that
+ * stamps `variant` onto every event. There is deliberately no second source of truth:
+ * if this component read the flag independently, a visitor could be shown one arm and
+ * have their events attributed to the other, and nothing downstream would reveal it.
  *
  * THE RACE, AND WHAT IS RENDERED DURING IT
  *
@@ -26,10 +25,15 @@ type Variant = "control" | "interactive_replay";
  *    `replay_started` for a visitor who belongs to the control arm. That is not a
  *    flicker problem, it is a contaminated experiment.
  *
- * 2. Control is where an unresolved flag lands anyway. `onVariantResolved` falls back
- *    to control after its timeout, and given that ad blockers suppress flag requests
- *    for a large share of this audience, that fallback is a common path rather than an
- *    edge case. Rendering it immediately means those visitors see no swap at all.
+ * 2. Control is where an unresolved flag lands anyway. Given that ad blockers suppress
+ *    flag requests for a large share of this audience, that is a common path rather
+ *    than an edge case. Rendering it immediately means those visitors see no swap at
+ *    all.
+ *
+ *    This subscribes to the flag rather than waiting on `onVariantResolved`, which
+ *    gives up after 2000ms. That timeout was the cause of a real defect: on a cold load
+ *    the hero stayed static and only became interactive after a reload, because the
+ *    timer expired before the flag landed and the component committed to control.
  *
  * 3. It keeps the reservation honest. The control panel is the lighter of the two, so
  *    the visitor sees real chrome — title bar, gridlines, axis — rather than a blank
@@ -50,17 +54,12 @@ export function HeroPanel({ control }: { control: React.ReactNode }) {
   const [variant, setVariant] = useState<Variant | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-
-    // Not a synchronous setState in an effect: this resolves after the flag lands, or
-    // after the 2000ms fallback, whichever comes first.
-    void onVariantResolved().then((resolved) => {
-      if (!cancelled) setVariant(resolved);
-    });
-
-    return () => {
-      cancelled = true;
-    };
+    // Subscribes rather than racing a timeout. `onVariantResolved` gives up after
+    // 2000ms and answers `control`, which is the right trade for an event but the
+    // wrong one for a hero: a timed-out render commits the visitor to the control arm
+    // for the entire visit, and their later events get attributed to an arm they were
+    // never in. This waits for the real answer and swaps if it arrives.
+    return subscribeToVariant(setVariant);
   }, []);
 
   if (variant === "interactive_replay") return <ReplayPanel />;
