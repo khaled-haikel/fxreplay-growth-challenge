@@ -1,36 +1,117 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FX Replay — growth engineering challenge
 
-## Getting Started
+A marketing landing page whose hero is a working piece of the product.
 
-First, run the development server:
+**The thesis.** The biggest friction between marketing traffic and account creation is
+that a visitor cannot tell what the tool feels like before signing up — traders compare
+everything to TradingView, where the chart is visible without an account. So the hero
+gives away a piece of the product: an interactive replay where price advances candle by
+candle, you take a position, close it, and see the result. The moment a trade closes is
+the signup trigger, and that interaction is the activation step of the funnel rather
+than decoration.
+
+**Live:** https://fxreplay-growth-challenge.vercel.app
+
+**Time spent:** roughly six hours across two sessions.
+
+---
+
+## Run it locally
+
+Zero configuration. No account, no keys, no database.
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. The replay runs, signup works end to end, and a user row is
+created — because **the in-memory adapter is the default, not a fallback**. Requiring a
+Postgres instance to look at a landing page is a tax on exactly the person whose time
+matters most here.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The in-memory store lives for the life of the server process. Restarting `npm run dev`
+clears it.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Optionally: use Supabase instead
 
-## Learn More
+Add both variables to `.env.local` and restart. The adapter is selected once at module
+load and logs which one is active in development.
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Then apply `supabase/migrations/0001_create_users.sql`. With neither variable set, the
+app never touches Postgres.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Analytics (optional)
 
-## Deploy on Vercel
+```bash
+NEXT_PUBLIC_POSTHOG_KEY=phc_...
+NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Without these the app runs normally and warns once in development that events will not
+be sent.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Other commands
+
+```bash
+npm run verify      # preflight: env vars, analytics module layout, host reachability
+npm run build       # compiles the MCP tracking plan, then builds Next
+npm run lint
+npx tsc --noEmit
+node mcp/tracking-plan-server/smoke-test.mjs   # exercises the MCP server's three tools
+```
+
+---
+
+## Documents
+
+| Document | What it covers |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Structure, the technical decisions and what each one gave up, API design, deployment, and what would change at real scale |
+| [ANALYTICS.md](ANALYTICS.md) | Events, properties, the funnel, the primary metric, and the data-quality guarantees — tables generated from the tracking plan |
+| [EXPERIMENT.md](EXPERIMENT.md) | Hypothesis, arms, sizing arithmetic with assumptions stated, and decision criteria for all three outcomes |
+| [AI-NATIVE.md](AI-NATIVE.md) | The two-layer MCP architecture, subagents, the skill, and the specific places AI output was wrong and how it was caught |
+| [PERFORMANCE.md](PERFORMANCE.md) | Measured Lighthouse results against production, accessibility with computed contrast, and production risks |
+
+---
+
+## What I did not build, and why
+
+Each of these was a deliberate cut against a six-hour budget, not an oversight. The
+approach is documented in the linked section so the decision can be argued with.
+
+**A reverse proxy for PostHog.** The single highest-value remaining change. Ad blockers
+suppressed **100% of client-side telemetry** during this build — every browser event,
+including PostHog's own — while server-emitted events arrived untouched. Routing
+ingestion through a first-party path is the only mitigation that recovers the blocked
+population rather than measuring the loss. It needs the deployed domain and belongs in
+platform configuration, so it was documented rather than rushed.
+→ [ANALYTICS.md, Data quality](ANALYTICS.md#ad-blockers-suppressed-100-of-client-telemetry)
+
+**Tests.** None exist. The two contracts worth covering first are the two that actually
+broke: `contextSchema` rejecting a payload missing `flag_resolved`, and `POST /api/users`
+returning 409 rather than writing a duplicate row. Both are pure functions over typed
+input and need no browser.
+→ [ARCHITECTURE.md, No tests](ARCHITECTURE.md#no-tests)
+
+**Real authentication.** Out of scope by the brief. The users table has no credentials
+column, and authorisation currently lives in the server rather than the database.
+→ [ARCHITECTURE.md, RLS with no policy](ARCHITECTURE.md#rls-enabled-with-no-policy)
+
+**A real market data feed.** The replay runs 120 deterministic seeded candles. The array
+is shaped like the response the market data endpoint would return, so swapping the
+source is a change of import.
+→ [ARCHITECTURE.md, Deterministic seeded data](ARCHITECTURE.md#deterministic-seeded-candle-data)
+
+**Rate limiting on user creation.** `POST /api/users` is unauthenticated and unthrottled.
+→ [PERFORMANCE.md, Production risks](PERFORMANCE.md#production-risks)
+
+**Performance work on the replay.** Lighthouse scores production at **53** for
+performance, with 2,860ms of total blocking time. The cause is understood and named; the
+fix was not attempted within the budget.
+→ [PERFORMANCE.md](PERFORMANCE.md)
