@@ -71,7 +71,49 @@ mounts into space that was already allocated. The chart appearing shifts nothing
    deliberately rather than a pure optimisation. It should be measured per arm in the
    experiment.
 
-None were attempted inside the six-hour budget.
+### The deferral attempt, and why its result is not usable
+
+Fix 3 was attempted indirectly. Gating the replay behind flag resolution — built for the
+experiment's control arm — defers `ReplayPanel` from mounting until the flag lands, which
+is a deferral in everything but name.
+
+Re-measured against production after that shipped:
+
+| | Before | After |
+|---|---|---|
+| Performance | 53 | 55 |
+| First Contentful Paint | 2.0 s | 1.7 s |
+| Largest Contentful Paint | 4.1 s | 3.8 s |
+| **Total Blocking Time** | 2,860 ms | **3,110 ms** |
+| Cumulative Layout Shift | 0 | **0** |
+| Main-thread work | 9.2 s | 6.7 s |
+| JS bootup | 4.7 s | 3.8 s |
+
+**This comparison is invalid and should not be quoted as a performance win.** Lighthouse
+measured a page with no canvas in it — "canvas" appears zero times in the report and none
+of the replay's control text is present. It measured the **control arm**, not a deferred
+treatment arm. Comparing 53 (treatment) against 55 (control) compares two different
+pages.
+
+The deferral is therefore **unmeasured**, not successful. Recording it as a failed
+attempt rather than banking the two points.
+
+**What the run did establish**, because it is the same page either way:
+
+- **CLS is still 0.** The reservation holds across the variant switch.
+- **The blocking time is not the canvas.** With no canvas on the page at all, TBT was
+  *higher* at 3,110 ms, and the longest tasks — 963 ms and 671 ms — sit in a first-party
+  application chunk. PostHog costs 2 ms of blocking and 51 KB. So the dominant cost is
+  React hydration of the page itself, and fix 3 would have recovered less than assumed.
+  That reframes the priority: the bundle, not the animation loop, is the thing to attack.
+- FCP and LCP both improved by ~0.3 s, consistent with less work competing at startup.
+
+**To measure the deferral properly**, the flag has to resolve to `interactive_replay`
+inside the Lighthouse run, so both measurements are of the same arm. The straightforward
+way is to force the flag on for the test session in PostHog and re-run. That was not done
+here, and the number stays unclaimed until it is.
+
+None of the three fixes were completed inside the six-hour budget.
 
 ## Rendering strategy
 

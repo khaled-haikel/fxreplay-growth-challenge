@@ -84,6 +84,30 @@ for the case where the same logical event can originate on both sides.
 | 4 | `signup_started` | Began signup |
 | 5 | `account_created` | Created an account |
 
+### The control arm has no intermediate steps
+
+**Only the `interactive_replay` arm produces steps 2 and 3.** The control hero is a
+static panel with no replay, so `replay_started`, `trade_opened` and `trade_closed` never
+fire for those visitors. That is correct, not broken: there is nothing to start and no
+trade to take.
+
+The consequence for anyone building a chart: **on a shared five-step funnel the control
+arm will appear to skip straight from `page_viewed` to `signup_started`**, showing 0% at
+steps 2 and 3. That is not instrumentation failure and not a tracking bug — it is the
+experiment working.
+
+Measure the two arms accordingly:
+
+| Arm | Funnel |
+|---|---|
+| `interactive_replay` | The full five steps |
+| `control` | `page_viewed` → `signup_started` → `account_created` |
+
+The **primary metric is unaffected**, because it spans `page_viewed` to
+`account_created` and both arms produce both ends. Only the intermediate diagnostics
+differ, and the activation guardrail (`trade_closed / replay_started`) is by definition
+computable for the treatment arm alone.
+
 Step 3 is the one that makes the rest interpretable. Without an activation step, a
 drop-off tells you the variant lost but not whether nobody pressed play or everybody
 played and nobody signed up. Those are different problems with different fixes.

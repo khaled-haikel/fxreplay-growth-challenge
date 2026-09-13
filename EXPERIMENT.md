@@ -26,11 +26,26 @@ Feature flag: `hero-interactive-replay`
 Everything outside the hero is identical — same copy, same proof cards, same signup
 form, same page structure. The only difference is whether the panel is interactive.
 
-**Note on the current build:** only the `interactive_replay` arm is implemented. The
-control arm needs a static panel variant, which is a small piece of work but real: the
-`variant` value is already available to every component through
-`getVariant()`, so branching the panel is the remaining step. Running the experiment
-without it would compare the treatment against nothing.
+**Both arms are built.** The hero reads the arm from `onVariantResolved()` in the
+analytics layer — the same feature flag that stamps `variant` onto every event, so a
+visitor cannot be shown one arm and have their events attributed to the other.
+
+The control reuses the interactive panel's chrome exactly: same `Panel`, same title bar,
+same reserved `aspect-[16/10]` body, same gridlines and price axis. It is a Server
+Component and ships no JavaScript. **No screenshot was used** — an image would change
+visual density, colour and the amount of market information on screen, and a lift could
+then be attributed to any of them rather than to interactivity, which is the only thing
+the hypothesis isolates.
+
+**To see each arm as a reviewer:** toggle `hero-interactive-replay` in PostHog for your
+own user, then reload. Rolled out, you get the replay; rolled back or unresolved, you get
+the static panel. There is deliberately no URL override — a second way to set the variant
+would let the displayed arm and the recorded arm disagree.
+
+**During the flag's resolution window the control is shown**, and the interactive panel
+swaps in only once the flag resolves to `interactive_replay`. Rendering the replay first
+would autoplay it and fire `replay_started` for a control visitor, contaminating the very
+comparison this experiment exists to make.
 
 ## Primary metric
 
@@ -172,9 +187,6 @@ against a complete numerator **inflates the apparent conversion rate** — and w
 unevenly across arms only if blocking correlates with arm, which it should not. The
 absolute rate is therefore untrustworthy; the *relative* comparison between arms survives,
 which is what the decision rests on. Fixing this properly is the reverse proxy.
-
-**Only one arm is built.** Stated above and worth repeating: there is no control hero
-yet.
 
 **One symbol, one timeframe, seeded data.** The replay always shows the same 120 EURUSD
 candles. A visitor who reloads sees an identical session. Whether the effect holds with
