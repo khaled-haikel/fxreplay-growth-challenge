@@ -71,6 +71,23 @@ swaps in only once the flag resolves to `interactive_replay`. Rendering the repl
 would autoplay it and fire `replay_started` for a control visitor, contaminating the very
 comparison this experiment exists to make.
 
+### Both arms verified in production
+
+Checked against the deployed site by toggling `hero-interactive-replay`, after the
+renderer was extracted so both arms share one drawing implementation.
+
+| Arm | Observed |
+|---|---|
+| `control` | Full static chart with the price line and chip. No controls, no floating cards. Title bar reads `Preview`. Nothing animates. |
+| `interactive_replay` | Chart plays, controls and floating cards present, loop intact. A trade was taken and closed: `trade_closed` fired with plausible `pnl_r` and `hold_candles`, and the Trades card incremented. |
+
+The instrumentation check is the one that mattered. The panel was heavily edited to
+delegate its drawing to the shared renderer, and until a trade had actually been run
+through the refactored component, the three replay events were intact by inspection only.
+They are now confirmed firing end to end.
+
+The flag is back at 50/50.
+
 ## Primary metric
 
 **Unique visitors reaching `account_created` ÷ unique visitors reaching `page_viewed`,
