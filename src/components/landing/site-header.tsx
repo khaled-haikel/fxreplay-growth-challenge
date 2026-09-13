@@ -19,6 +19,10 @@ export function SiteHeader() {
           width={1609}
           height={209}
           priority
+          // `priority` emits the preload link; it does not set a priority on it.
+          // Lighthouse flagged the LCP request as discoverable but unprioritised, so
+          // this marks it explicitly. The wordmark is the LCP element on desktop.
+          fetchPriority="high"
           className="h-[20px] w-auto"
         />
 

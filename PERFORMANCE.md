@@ -2,118 +2,105 @@
 
 ## Lighthouse, measured against production
 
-Run against `https://fxreplay-growth-challenge.vercel.app/` on 2026-09-13, headless
-Chrome, Lighthouse 12, default mobile emulation and throttling.
+**Measurement conditions:** Chrome DevTools Lighthouse, **Navigation mode, Desktop**,
+against `https://fxreplay-growth-challenge.vercel.app/`, with the
+`hero-interactive-replay` flag **forced to `interactive_replay`** so the run measures the
+treatment arm — the heavier of the two.
 
 | Category | Score |
 |---|---|
-| Performance | **53** |
+| Performance | **76** |
 | Accessibility | **100** |
 | Best practices | **100** |
 | SEO | **100** |
 
 | Metric | Value |
 |---|---|
-| First Contentful Paint | 2.0 s |
-| Largest Contentful Paint | 4.1 s |
-| Total Blocking Time | **2,860 ms** |
+| First Contentful Paint | 0.6 s |
+| Largest Contentful Paint | 0.7 s |
+| Total Blocking Time | 560 ms |
 | Cumulative Layout Shift | **0** |
-| Speed Index | 4.7 s |
-| Time to Interactive | 6.8 s |
+| Speed Index | 1.3 s |
 
-To reproduce:
+### These figures replace the earlier ones, which were not measurable
 
-```bash
-npx --yes lighthouse@12 https://fxreplay-growth-challenge.vercel.app/ \
-  --only-categories=performance,accessibility,best-practices,seo \
-  --chrome-flags="--headless=new"
+Two earlier numbers appeared in this document and both are withdrawn.
+
+A run scoring **53** was taken on mobile emulation before the experiment's control arm
+existed. A later run scoring **55** was presented as a before/after for a deferral
+attempt, and that comparison was **invalid**: `"canvas"` appeared zero times in the
+report, so it had measured the *control* arm while the 53 measured the treatment. The two
+numbers described different pages, and no conclusion could be drawn from the difference.
+
+Forcing the flag is what makes the current figure quotable. With the flag at 50/50, a
+Lighthouse run lands on whichever arm it happens to get and the score is unattributable —
+which is exactly how the invalid comparison happened.
+
+The remaining difference between 53 and 76 is mobile emulation versus desktop, not an
+optimisation. Nothing in the repository made the page three times faster; the earlier run
+throttled CPU and network to a mid-range phone. **The mobile number has not been re-taken
+under controlled conditions and should be assumed materially worse than 76.**
+
+### Total blocking time is React hydration, not the canvas
+
+The intuitive reading of 560 ms of blocking on a page with an animating chart is that the
+chart causes it. The evidence says otherwise, and it came from the run that was otherwise
+useless.
+
+On the **control arm — which has no animation loop at all** — total blocking time was
+*higher*, at 3,110 ms against the treatment's 2,860 ms on the same mobile profile. The
+two longest tasks, 963 ms and 671 ms, sat in a first-party application chunk. PostHog
+contributed **2 ms** of blocking and 51 KB.
+
+So the dominant cost is hydrating the page, not running the replay. That inverts the
+optimisation priority: deferring the animation loop — the fix that looked most promising —
+would have recovered the least, and the bundle is the thing to attack. The largest single
+chunk shipped is **669 KB of posthog-js**, against 223 KB for the largest application
+chunk.
+
+### Two Lighthouse fixes attempted
+
+**1. LCP request discovery — landed.**
+
+Lighthouse reported the LCP element (the header wordmark) as discoverable in the initial
+document and not lazy-loaded, but its preload request carried no priority. Next's
+`priority` prop emits the preload link; it does not mark it high-priority.
+
+Adding `fetchPriority="high"` to that `Image` puts the attribute on the request Lighthouse
+actually audits:
+
+```html
+<link rel="preload" as="image" href="/FXReplayLogo.svg" fetchPriority="high"/>
 ```
 
-On Windows this exits non-zero on a temp-directory cleanup error *after* writing the
-report; the JSON is still valid. Set `CHROME_PATH` if Chrome is not on `PATH`.
+Verified in the built output on the preload link, not merely on the `<img>`. One
+attribute, no behaviour change, no regression: `aspect-[16/10]` still appears once and
+the page structure is unchanged.
 
-## Reading the performance score honestly
+**2. Legacy JavaScript, est. 37 KiB — not attempted, and not because of uncertainty.**
 
-**53 is the weakest number in this project, and the cause is the product thesis.**
+The saving is not ours to recover. Investigated rather than guessed:
 
-| Diagnostic | Value |
-|---|---|
-| Main-thread work | 9.2 s |
-| JavaScript bootup time | 4.7 s |
-| Total transfer | 525 KiB |
-| Longest task | 881 ms |
-| Next three tasks | 747 ms, 511 ms, 510 ms |
+- The project declares **no `browserslist`** at all, in `package.json` or elsewhere, so
+  Next builds against its own default target.
+- Our shipped application chunks contain **zero** legacy transpilation helpers —
+  `_createClass`, `_classCallCheck`, `regeneratorRuntime`, `__awaiter` and
+  `_asyncToGenerator` each appear in 0 chunks.
+- **posthog-js ships a prebuilt bundle with its own browserslist**
+  (`"> 0.5%, last 2 versions, Firefox ESR, not dead"`) and its own ES5 builds. A
+  `browserslist` key in this repository does not recompile a third-party dist bundle.
 
-The replay autoplays on load: a canvas, a `requestAnimationFrame` loop, and a 120-candle
-series advancing every 250ms. Lighthouse measures that as main-thread occupancy, and it
-is not wrong to. The hero exists to be interactive, and interactivity has a cost that
-shows up in exactly this metric.
+So narrowing the target would change nothing about the flagged bytes. Beyond that, doing
+it would require knowing FX Replay's real browser support matrix, which is not something
+to infer — and there is no usage data to infer it *from*, because client-side telemetry
+was suppressed by ad blockers for this entire build.
 
-That is an explanation, not a defence. The score is real and a visitor on a mid-range
-phone experiences it.
+The honest route to those 37 KiB is not a build target. It is dropping posthog-js
+features we do not use — `disable_surveys: true` alone removes 34 KB of `surveys.js` —
+and that is listed below as unattempted work.
 
-**CLS of 0 is the number I am most pleased with.** The replay slot is reserved with a
-fixed `aspect-[16/10]` container from the first server-rendered byte, so the canvas
-mounts into space that was already allocated. The chart appearing shifts nothing.
-
-**Three specific, unattempted fixes**, in order of expected value:
-
-1. **The LCP element is the header wordmark** — a 19 KB SVG at `1609×209`, rendered at
-   20px tall. It is `priority`-loaded, which is why it *is* the LCP, and it is far larger
-   than it needs to be at that size. A smaller optimised asset is the cheapest win here.
-2. **`surveys.js` is 34 KB of posthog-js we never use.** Setting `disable_surveys: true`
-   removes it outright. The largest script is 186 KB and the next 72 KB; posthog-js is a
-   substantial share of the bundle for a page that emits nine event types.
-3. **Do not autoplay the replay until it is in view, or until the main thread is idle.**
-   Deferring the rAF loop past first paint would move most of the 2,860ms out of the
-   measured window. This has a real trade-off against the product thesis — a hero that is
-   visibly moving is what communicates "this is playable" — so it is a decision to make
-   deliberately rather than a pure optimisation. It should be measured per arm in the
-   experiment.
-
-### The deferral attempt, and why its result is not usable
-
-Fix 3 was attempted indirectly. Gating the replay behind flag resolution — built for the
-experiment's control arm — defers `ReplayPanel` from mounting until the flag lands, which
-is a deferral in everything but name.
-
-Re-measured against production after that shipped:
-
-| | Before | After |
-|---|---|---|
-| Performance | 53 | 55 |
-| First Contentful Paint | 2.0 s | 1.7 s |
-| Largest Contentful Paint | 4.1 s | 3.8 s |
-| **Total Blocking Time** | 2,860 ms | **3,110 ms** |
-| Cumulative Layout Shift | 0 | **0** |
-| Main-thread work | 9.2 s | 6.7 s |
-| JS bootup | 4.7 s | 3.8 s |
-
-**This comparison is invalid and should not be quoted as a performance win.** Lighthouse
-measured a page with no canvas in it — "canvas" appears zero times in the report and none
-of the replay's control text is present. It measured the **control arm**, not a deferred
-treatment arm. Comparing 53 (treatment) against 55 (control) compares two different
-pages.
-
-The deferral is therefore **unmeasured**, not successful. Recording it as a failed
-attempt rather than banking the two points.
-
-**What the run did establish**, because it is the same page either way:
-
-- **CLS is still 0.** The reservation holds across the variant switch.
-- **The blocking time is not the canvas.** With no canvas on the page at all, TBT was
-  *higher* at 3,110 ms, and the longest tasks — 963 ms and 671 ms — sit in a first-party
-  application chunk. PostHog costs 2 ms of blocking and 51 KB. So the dominant cost is
-  React hydration of the page itself, and fix 3 would have recovered less than assumed.
-  That reframes the priority: the bundle, not the animation loop, is the thing to attack.
-- FCP and LCP both improved by ~0.3 s, consistent with less work competing at startup.
-
-**To measure the deferral properly**, the flag has to resolve to `interactive_replay`
-inside the Lighthouse run, so both measurements are of the same arm. The straightforward
-way is to force the flag on for the test session in PostHog and re-run. That was not done
-here, and the number stays unclaimed until it is.
-
-None of the three fixes were completed inside the six-hour budget.
+The render-blocking requests and cache lifetime items were deliberately not attempted:
+the first is Next's own CSS strategy, and the second is a 1 KiB saving.
 
 ## Rendering strategy
 
@@ -266,6 +253,8 @@ given that the failure it catches was discovered in production.
 that would be written first. The honest cost is that most defects in this build were found
 by inspecting production data rather than by anything failing locally.
 
-**Performance at 53 on mobile.** Named above with three specific fixes. At real traffic
-this is a conversion cost, and since the heavier hero is exactly what the experiment is
-testing, it should be measured per arm rather than assumed neutral.
+**Mobile performance is unmeasured under controlled conditions.** The quotable figure —
+76 — is desktop. The only mobile runs predate the control arm or measured an unknown arm,
+so the mobile score is genuinely unknown and should be assumed materially worse. Since the
+heavier hero is exactly what the experiment is testing, performance should be measured per
+arm on mobile before the result is trusted, rather than assumed neutral.
