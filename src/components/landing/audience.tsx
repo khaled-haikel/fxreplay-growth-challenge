@@ -43,7 +43,7 @@ export function Audience() {
       className="border-y border-line-subtle bg-surface"
     >
       <div className="mx-auto w-full max-w-6xl px-6 py-12 sm:py-14 lg:py-16">
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.88fr)] lg:items-center lg:gap-14">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.88fr)] lg:items-start lg:gap-14">
           <div className="fx-reveal">
             <h2
               id="audience-heading"

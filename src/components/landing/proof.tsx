@@ -167,7 +167,6 @@ function LimitPreview() {
 
 const items = [
   {
-    index: "01",
     Preview: CandlePreview,
     inset: false,
     heading: "Replay real market data at your own pace",
@@ -176,7 +175,6 @@ const items = [
       "catching you out and take it again, until the decision stops being a decision.",
   },
   {
-    index: "02",
     Preview: JournalPreview,
     inset: true,
     heading: "Every trade is journaled as you take it",
@@ -185,7 +183,6 @@ const items = [
       "review what you actually did, not the improved version you remember afterwards.",
   },
   {
-    index: "03",
     Preview: LimitPreview,
     inset: true,
     heading: "Rehearse the evaluation, not just the market",
@@ -206,7 +203,7 @@ export function Proof() {
         <ul className="mt-10 grid gap-5 lg:grid-cols-3">
           {items.map((item, index) => (
             <li
-              key={item.index}
+              key={item.heading}
               className={`group fx-reveal ${
                 ["", "fx-reveal-2", "fx-reveal-3"][index]
               } flex h-full flex-col overflow-hidden rounded-xl border border-line-subtle bg-surface transition-[background-color,border-color] duration-150 ease-out hover:border-line-strong hover:bg-surface-raised`}
@@ -220,9 +217,6 @@ export function Proof() {
                 }`}
               >
                 <item.Preview />
-                <span className="tabular absolute right-3 top-2.5 text-[10px] text-accent-soft">
-                  {item.index}
-                </span>
               </div>
 
               <div className="flex flex-1 flex-col p-6">
