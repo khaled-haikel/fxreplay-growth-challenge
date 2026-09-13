@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build:mcp": "tsc src/lib/analytics/tracking-plan.ts --outDir mcp/tracking-plan-server/generated --module esnext --target es2022 --moduleResolution bundler --skipLibCheck",
+    "build": "npm run build:mcp && next build",
     "start": "next start",
     "lint": "eslint",
     "verify": "node scripts/verify-setup.mjs"

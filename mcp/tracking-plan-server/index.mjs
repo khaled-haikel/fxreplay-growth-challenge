@@ -7,30 +7,63 @@
  * largest single source of dirty analytics data, and it happens because the contract
  * lives in a file nobody reads at the moment they need it.
  *
- * SOURCE OF TRUTH: this server imports `src/lib/analytics/tracking-plan.ts` directly.
- * It does not hold a copy, a summary, or a generated snapshot of the plan. The app,
- * the runtime validator and these tools all read the same module, so the three cannot
- * disagree — and `validate_event_payload` runs the application's own `validateEvent`
- * rather than reimplementing it.
+ * SOURCE OF TRUTH: `src/lib/analytics/tracking-plan.ts`, and nothing else. This server
+ * reads a COMPILED copy of that file, emitted by `npm run build:mcp` and never edited
+ * by hand. Compilation is the only transformation: the schemas are the same objects
+ * and `validate_event_payload` runs the application's own `validateEvent`, so this
+ * server and the running app cannot give different answers.
  *
- * The TypeScript is loaded with Node's `--experimental-transform-types`. Plain type
- * stripping is not enough: `TrackingPlanViolation` uses constructor parameter
- * properties, which have to be transformed rather than erased.
+ * RUNTIME: plain Node 18+, no experimental flags. The plan is compiled ahead of time
+ * by `npm run build:mcp` into `generated/`, using the TypeScript compiler this repo
+ * already depends on. That compiled module still exports the real `validateEvent`,
+ * which is why compilation was chosen over a JSON snapshot: a snapshot can carry the
+ * schemas but not the function, and reimplementing validation here would give two
+ * definitions of what a valid event is — the exact failure the tracking plan exists
+ * to prevent.
  */
 
+import { statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const trackingPlanPath = resolve(here, "../../src/lib/analytics/tracking-plan.ts");
+import {
+  contextSchema,
+  trackingPlan,
+  validateEvent,
+} from "./generated/tracking-plan.js";
 
-const { trackingPlan, contextSchema, validateEvent } = await import(
-  pathToFileURL(trackingPlanPath).href
-);
+const here = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Warns when the compiled plan is older than its source.
+ *
+ * The one risk a build step introduces is drift: someone edits the plan, does not
+ * rebuild, and every answer this server gives is quietly out of date. A stat on two
+ * files closes it. Written to stderr, never stdout — stdout is the MCP protocol
+ * channel and anything else on it corrupts the stream.
+ */
+function warnIfStale() {
+  try {
+    const source = statSync(resolve(here, "../../src/lib/analytics/tracking-plan.ts"));
+    const compiled = statSync(resolve(here, "generated/tracking-plan.js"));
+    if (source.mtimeMs > compiled.mtimeMs) {
+      console.error(
+        "[tracking-plan] WARNING: tracking-plan.ts is newer than the compiled copy " +
+          "in generated/. This server is answering from stale data. " +
+          "Run `npm run build:mcp`.",
+      );
+    }
+  } catch {
+    // A missing file is not worth crashing the server over; the import above would
+    // already have failed if the compiled plan were absent.
+  }
+}
+
+warnIfStale();
 
 const eventNames = Object.keys(trackingPlan);
 
